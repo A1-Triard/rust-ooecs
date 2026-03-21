@@ -1,5 +1,6 @@
 use arena_container::Arena;
 use std::any::TypeId;
+use std::ops::{Deref, DerefMut};
 
 struct WorldComponent {
     ty: TypeId,
@@ -40,6 +41,34 @@ impl Component {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Entity(usize);
 
+pub struct ComponentRef<'a, T: 'static> {
+    world: &'a mut World,
+    component: Component,
+    storage: Option<Arena<isize, T>>,
+    id: isize,
+}
+
+impl<'a, T: 'static> Drop for ComponentRef<'a, T> {
+    fn drop(&mut self) {
+        let storage = self.storage.take().unwrap().into_raw_parts();
+        self.world.components[self.component.0].storage = Some(storage);
+    }
+}
+
+impl<'a, T: 'static> Deref for ComponentRef<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage.as_ref().unwrap()[self.id]
+    }
+}
+
+impl<'a, T: 'static> DerefMut for ComponentRef<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage.as_mut().unwrap()[self.id]
+    }
+}
+
 impl Entity {
     pub fn new(world: &mut World) -> Self {
         world.entities.insert(|id| (Vec::new(), Entity(id)))
@@ -58,6 +87,16 @@ impl Entity {
             components.push(-1);
         }
         components[component.0] = id;
+    }
+
+    pub fn component<T: 'static>(self, world: &mut World, component: Component) -> ComponentRef<'_, T> {
+        assert_eq!(world.components[component.0].ty, TypeId::of::<T>());
+        let storage = world.components[component.0].storage.take().unwrap();
+        let storage: Arena<isize, T> = unsafe {
+            Arena::from_raw_parts(storage.0, storage.1, storage.2, storage.3)
+        };
+        let id = world.entities[self.0][component.0];
+        ComponentRef { world, component, storage: Some(storage), id }
     }
 }
 
