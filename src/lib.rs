@@ -1,5 +1,6 @@
 use arena_container::Arena;
 use std::any::TypeId;
+use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 
 struct WorldComponent {
@@ -76,27 +77,72 @@ impl Entity {
 
     pub fn add_component<T: 'static>(self, world: &mut World, component: Component, t: T) {
         assert_eq!(world.components[component.0].ty, TypeId::of::<T>());
+        let components = &mut world.entities[self.0];
+        for _ in components.len() ..= component.0 {
+            components.push(-1);
+        }
+        assert!(components[component.0] < 0);
         let storage = world.components[component.0].storage.take().unwrap();
         let mut storage: Arena<isize, T> = unsafe {
             Arena::from_raw_parts(storage.0, storage.1, storage.2, storage.3)
         };
         let id = storage.insert(move |id| (t, id));
         world.components[component.0].storage = Some(storage.into_raw_parts());
+        components[component.0] = id;
+    }
+
+    pub fn remove_component<T: 'static>(self, world: &mut World, component: Component) -> T {
+        assert_eq!(world.components[component.0].ty, TypeId::of::<T>());
         let components = &mut world.entities[self.0];
         for _ in components.len() ..= component.0 {
             components.push(-1);
         }
-        components[component.0] = id;
+        let id = replace(&mut components[component.0], -1);
+        assert!(id >= 0);
+        let storage = world.components[component.0].storage.take().unwrap();
+        let mut storage: Arena<isize, T> = unsafe {
+            Arena::from_raw_parts(storage.0, storage.1, storage.2, storage.3)
+        };
+        let res = storage.remove(id);
+        world.components[component.0].storage = Some(storage.into_raw_parts());
+        res
     }
 
-    pub fn component<T: 'static>(self, world: &mut World, component: Component) -> ComponentRef<'_, T> {
+    pub fn component<T: 'static>(self, world: &mut World, component: Component) -> Option<ComponentRef<'_, T>> {
         assert_eq!(world.components[component.0].ty, TypeId::of::<T>());
         let storage = world.components[component.0].storage.take().unwrap();
         let storage: Arena<isize, T> = unsafe {
             Arena::from_raw_parts(storage.0, storage.1, storage.2, storage.3)
         };
-        let id = world.entities[self.0][component.0];
-        ComponentRef { world, component, storage: Some(storage), id }
+        let id = world.entities[self.0].get(component.0).copied();
+        match id {
+            Some(id) if id >= 0 => Some(ComponentRef { world, component, storage: Some(storage), id }),
+            _ => {
+                world.components[component.0].storage = Some(storage.into_raw_parts());
+                None
+            },
+        }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    struct TestComponent {
+        value: i8,
+    }
+
+    #[test]
+    fn add_modify_remove_component() {
+        let world = &mut World::new();
+        let component = Component::new::<TestComponent>(world);
+        let entity = Entity::new(world);
+        assert!(entity.component::<TestComponent>(world, component).is_none());
+        entity.add_component::<TestComponent>(world, component, TestComponent { value: 7 });
+        assert_eq!(entity.component::<TestComponent>(world, component).unwrap().value, 7);
+        entity.component::<TestComponent>(world, component).unwrap().value = 8;
+        assert_eq!(entity.component::<TestComponent>(world, component).unwrap().value, 8);
+        assert_eq!(entity.remove_component::<TestComponent>(world, component).value, 8);
+    }
+}
