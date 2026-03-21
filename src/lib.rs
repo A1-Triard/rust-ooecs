@@ -1,4 +1,5 @@
 use arena_container::Arena;
+use panicking::panicking;
 use std::any::TypeId;
 use std::mem::replace;
 use std::ops::{Deref, DerefMut};
@@ -11,6 +12,14 @@ struct WorldComponent {
 pub struct World {
     components: Vec<WorldComponent>,
     entities: Arena<usize, Vec<isize>>,
+}
+
+impl Drop for World {
+    fn drop(&mut self) {
+        if !panicking() {
+            assert!(self.components.iter().all(|x| x.storage.is_none()));
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
