@@ -37,6 +37,15 @@ impl Component {
         });
         Component(id)
     }
+
+    pub fn drop_component<T: 'static>(self, world: &mut World) {
+        assert_eq!(world.components[self.0].ty, TypeId::of::<T>());
+        let storage = world.components[self.0].storage.take().unwrap();
+        let storage: Arena<isize, T> = unsafe {
+            Arena::from_raw_parts(storage.0, storage.1, storage.2, storage.3)
+        };
+        drop(storage);
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -73,6 +82,11 @@ impl<'a, T: 'static> DerefMut for ComponentRef<'a, T> {
 impl Entity {
     pub fn new(world: &mut World) -> Self {
         world.entities.insert(|id| (Vec::new(), Entity(id)))
+    }
+
+    pub fn drop_entity(self, world: &mut World) {
+        let components = world.entities.remove(self.0);
+        assert!(components.iter().all(|&x| x < 0));
     }
 
     pub fn add_component<T: 'static>(self, world: &mut World, component: Component, t: T) {
@@ -144,5 +158,7 @@ mod tests {
         entity.component::<TestComponent>(world, component).unwrap().value = 8;
         assert_eq!(entity.component::<TestComponent>(world, component).unwrap().value, 8);
         assert_eq!(entity.remove_component::<TestComponent>(world, component).value, 8);
+        entity.drop_entity(world);
+        component.drop_component::<TestComponent>(world);
     }
 }
