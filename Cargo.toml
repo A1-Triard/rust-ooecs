@@ -1,6 +1,8 @@
 [package]
-name = "rust-ooecs"
+name = "ooecs"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+arena-container = "0.0.2"
+basic-oop = "0.8.2"
