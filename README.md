@@ -5,7 +5,7 @@
 Highly non-traditional entity-component-system implementation where logic is encapsulated in object-oriented
 systems.
 
-While components remain lean and data-focused for cache-friendly processing,
+While components remain lean and data-focused,
 systems are treated as first-class objects that can maintain their own internal state across ticks.
 
 It is designed for cases, where simple "linear" systems are not good enough.
