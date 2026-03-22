@@ -143,3 +143,39 @@ impl Tree {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use crate::tree::Tree;
+
+    #[test]
+    fn create_tree_and_destroy() {
+        let world = &mut World::new();
+        let tree_component = Component::new::<Tree>(world);
+        
+        let root = Entity::new(world);
+        Tree::init(root, world, tree_component);
+        let child_1 = Entity::new(world);
+        Tree::init(child_1, world, tree_component);
+        let child_2 = Entity::new(world);
+        Tree::init(child_2, world, tree_component);
+
+        Tree::attach_first(root, child_1, world, tree_component);
+        Tree::attach_last(root, child_2, world, tree_component);
+
+        assert_eq!(child_1.component::<Tree>(world, tree_component).unwrap().parent, Some(root));
+        assert_eq!(child_1.component::<Tree>(world, tree_component).unwrap().next_sibling, child_2);
+        assert_eq!(child_2.component::<Tree>(world, tree_component).unwrap().parent, Some(root));
+        assert_eq!(child_2.component::<Tree>(world, tree_component).unwrap().next_sibling, child_1);
+        assert_eq!(root.component::<Tree>(world, tree_component).unwrap().last_child, Some(child_2));
+
+        Tree::destroy(root, world, tree_component);
+
+        assert!(child_1.component::<Tree>(world, tree_component).is_none());
+        assert!(child_2.component::<Tree>(world, tree_component).is_none());
+        assert!(root.component::<Tree>(world, tree_component).is_none());
+
+        tree_component.drop_component::<Tree>(world);
+    }
+}
