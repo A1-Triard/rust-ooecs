@@ -130,6 +130,13 @@ let movement = Movement::new(mobs, position, velocity);
 movement.run(player, world);
 ```
 
+Finally, do some cleanup:
+```rust
+position.drop_component::<Position>(world);
+velocity.drop_component::<Velocity>(world);
+mobs.drop_component::<List>(world);
+```
+
 Full code:
 
 ```rust
@@ -236,5 +243,9 @@ fn main() {
 
     let movement = Movement::new(mobs, position, velocity);
     movement.run(player, world);
+
+    position.drop_component::<Position>(world);
+    velocity.drop_component::<Velocity>(world);
+    mobs.drop_component::<List>(world);
 }
 ```
