@@ -42,3 +42,42 @@ impl List {
         prev.component::<List>(world, list_component).unwrap().next = next;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use crate::list::List;
+
+    #[test]
+    fn create_list_remove_node_and_destroy() {
+        let world = &mut World::new();
+        let list_component = Component::new::<List>(world);
+
+        let node_1 = Entity::new(world);
+        List::init(node_1, world, list_component);
+        let node_2 = Entity::new(world);
+        List::init(node_2, world, list_component);
+        let node_3 = Entity::new(world);
+        List::init(node_3, world, list_component);
+
+        List::add(node_2, node_3, world, list_component);
+        List::add(node_1, node_2, world, list_component);
+
+        assert_eq!(node_1.component::<List>(world, list_component).unwrap().next, node_2);
+        assert_eq!(node_2.component::<List>(world, list_component).unwrap().next, node_3);
+        assert_eq!(node_3.component::<List>(world, list_component).unwrap().next, node_1);
+
+        List::remove(node_2, node_2, world, list_component);
+
+        assert_eq!(node_1.component::<List>(world, list_component).unwrap().next, node_3);
+        assert_eq!(node_3.component::<List>(world, list_component).unwrap().next, node_1);
+        assert_eq!(node_2.component::<List>(world, list_component).unwrap().next, node_2);
+
+        List::destroy(node_3, world, list_component);
+
+        assert!(node_1.component::<List>(world, list_component).is_none());
+        assert!(node_3.component::<List>(world, list_component).is_none());
+
+        list_component.drop_component::<List>(world);
+    }
+}
