@@ -4,6 +4,8 @@
 
 extern crate alloc;
 
+pub mod list;
+
 use alloc::vec::Vec;
 use arena_container::Arena;
 use core::any::TypeId;
