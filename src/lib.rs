@@ -5,6 +5,7 @@
 extern crate alloc;
 
 pub mod list;
+pub mod tree;
 
 use alloc::vec::Vec;
 use arena_container::Arena;
@@ -31,7 +32,7 @@ impl Drop for World {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Component(usize);
 
 impl World {
@@ -66,7 +67,7 @@ impl Component {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Entity(usize);
 
 pub struct ComponentRef<'a, T: 'static> {
