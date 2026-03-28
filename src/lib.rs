@@ -100,11 +100,48 @@ impl<E: PointeeSized> Drop for World<E> {
     }
 }
 
+/// An ID of a piece of [`Entity`] data and [`Entity`] archetype.
+///
+/// Each component defines not only component itself, but also an archetype.
+/// Archetype is a collection of components. Each entity belongs to the spicific archetype.
+/// To specify which components an archetype consists of, the base component notion is used.
+/// Exactly, each component corresponds to archetype containing the component
+/// and all base components along the chain.
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Component<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Component<E> {
+    /// Register new [`Component`] and corresponding archetype.
+    ///
+    /// An archetype is a collection of [`Component`]s. The registered archetype contains
+    /// of corresponding component and all components of `base` archetype.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// pub struct Position {
+    ///     x: i16,
+    ///     y: i16,
+    /// }
+    ///
+    /// pub struct Velocity {
+    ///     x: i16,
+    ///     y: i16,
+    /// }
+    ///
+    /// pub enum Game { }
+    ///
+    /// # int main() {
+    /// let mut world = <World<Game>>::new();
+    /// let position = Component::new::<Position>(None, &mut world);
+    /// let velocity = Component::new::<Velocity>(Some(position), &mut world);
+    /// # }
+    /// ```
+    ///
+    /// Here we define two `Component`s: `position` and `velocity`, and two corresponding archetypes.
+    /// The `position` archetype contains `position` component only. The `velocity` archetype
+    /// contains two components: `velocity` and `position`.
     pub fn new<T: 'static>(base: Option<Component<E>>, world: &mut World<E>) -> Self {
         let drop_component = Box::new(|p: *mut u8| {
             drop(unsafe { ptr::read(p as *mut T) });
@@ -161,11 +198,23 @@ impl<E: PointeeSized> Component<E> {
     }
 }
 
+/// Unique identifier for an entity in a [`World`].
+///
+/// Note that this is just an ID, not the entity itself.
+/// Further, the entity this ID refers to may no longer exist in the [`World`].
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Entity<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Entity<E> {
+    /// Create new [`Entity`] with provided `archetype`.
+    ///
+    /// After creation and before using
+    /// (i. e. calling [`get`](Entity::get)/[`get_mut`](Entity::get_mut) methods)
+    /// all components that make up the `archetype` must be initialized using
+    /// the [`add`](Entity::add) method.
+    ///
+    /// An [`Entity`] cannot contains [`Component`] that does not belong to the `archetype`.
     pub fn new(archetype: Component<E>, world: &mut World<E>) -> Self {
         let info = &mut world.components[archetype.0];
         let index = if let Some(vacancy) = info.archetype_storage_vacancy {
