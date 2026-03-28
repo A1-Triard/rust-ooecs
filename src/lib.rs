@@ -14,13 +14,15 @@ use alloc::alloc::{Layout, alloc, realloc, dealloc};
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use arena_container::Arena;
+use components_arena::{Arena, Id};
+use components_arena::Component as arena_Component;
 use core::any::TypeId;
 use core::cmp::max;
 use core::marker::PointeeSized;
 use core::mem::replace;
 use core::ptr::{self, null_mut};
 use educe::Educe;
+use macro_attr_2018::macro_attr;
 use phantom_type::PhantomType;
 
 struct ComponentInfo {
@@ -38,15 +40,18 @@ struct ComponentInfo {
     archetype_storage_vacancy: Option<usize>,
 }
 
-struct EntityInfo {
-    archetype: usize,
-    index: usize,
-    component_initialized: Option<Vec<bool>>,
+macro_attr! {
+    #[derive(arena_Component!)]
+    struct EntityInfo {
+        archetype: usize,
+        index: usize,
+        component_initialized: Option<Vec<bool>>,
+    }
 }
 
 pub struct World<E: PointeeSized + 'static> {
     components: Vec<ComponentInfo>,
-    entities: Arena<isize, EntityInfo>,
+    entities: Arena<EntityInfo>,
     _phantom: PhantomType<&'static E>
 }
 
@@ -207,7 +212,7 @@ impl<E: PointeeSized> Component<E> {
 /// Further, the entity this ID refers to may no longer exist in the [`World`].
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Entity<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
+pub struct Entity<E: PointeeSized + 'static>(Id<EntityInfo>, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Entity<E> {
     /// Create new [`Entity`] with provided `archetype`.

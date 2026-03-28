@@ -13,8 +13,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/A1-Triard/rust-ooecs"
 
 [dependencies]
-arena-container = "0.0.2"
+components-arena = "4.2.3"
 educe = "0.6.0"
+macro-attr-2018 = "3.0.1"
 panicking = "0.7.0"
 phantom-type = { version = "0.5.2", default-features = false }
 
