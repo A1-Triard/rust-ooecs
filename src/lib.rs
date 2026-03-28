@@ -14,7 +14,7 @@ use alloc::alloc::{Layout, alloc, realloc, dealloc};
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use components_arena::{Arena, Id};
+use components_arena::{Arena, Id, NewtypeComponentId};
 use components_arena::Component as arena_Component;
 use core::any::TypeId;
 use core::cmp::max;
@@ -206,13 +206,15 @@ impl<E: PointeeSized> Component<E> {
     }
 }
 
-/// Unique identifier for an entity in a [`World`].
-///
-/// Note that this is just an ID, not the entity itself.
-/// Further, the entity this ID refers to may no longer exist in the [`World`].
-#[derive(Educe)]
-#[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Entity<E: PointeeSized + 'static>(Id<EntityInfo>, PhantomType<&'static E>);
+macro_attr! {
+    /// Unique identifier for an entity in a [`World`].
+    ///
+    /// Note that this is just an ID, not the entity itself.
+    /// Further, the entity this ID refers to may no longer exist in the [`World`].
+    #[derive(Educe, NewtypeComponentId!)]
+    #[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+    pub struct Entity<E: PointeeSized + 'static>(Id<EntityInfo>, PhantomType<&'static E>);
+}
 
 impl<E: PointeeSized> Entity<E> {
     /// Create new [`Entity`] with provided `archetype`.
