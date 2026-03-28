@@ -31,7 +31,7 @@ struct ComponentInfo {
     archetype_align: usize,
     offset: usize,
     index: usize,
-    archetype_components_except_self: Vec<isize>,
+    archetype_components_except_self: Vec<usize>,
     archetype_storage_ptr: *mut u8,
     archetype_storage_capacity: usize,
     archetype_storage_len: usize,
@@ -39,13 +39,13 @@ struct ComponentInfo {
 }
 
 struct EntityInfo {
-    archetype: isize,
+    archetype: usize,
     index: usize,
     component_initialized: Option<Vec<bool>>,
 }
 
 pub struct World<E: PointeeSized + 'static> {
-    components: Arena<isize, ComponentInfo>,
+    components: Vec<ComponentInfo>,
     entities: Arena<isize, EntityInfo>,
     _phantom: PhantomType<&'static E>
 }
@@ -53,7 +53,7 @@ pub struct World<E: PointeeSized + 'static> {
 impl<E: PointeeSized> World<E> {
     pub const fn new() -> Self {
         World {
-            components: Arena::new(),
+            components: Vec::new(),
             entities: Arena::new(),
             _phantom: PhantomType::new(),
         }
@@ -88,7 +88,7 @@ impl<E: PointeeSized> Drop for World<E> {
                 (c_info.drop_component)(p);
             }
         }
-        for archetype in self.components.items().values() {
+        for archetype in &self.components {
             if !archetype.archetype_storage_ptr.is_null() {
                 let size = archetype.archetype_size.checked_mul(archetype.archetype_storage_capacity).unwrap();
                 unsafe { dealloc(
@@ -109,7 +109,7 @@ impl<E: PointeeSized> Drop for World<E> {
 /// and all base components along the chain.
 #[derive(Educe)]
 #[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Component<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
+pub struct Component<E: PointeeSized + 'static>(usize, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Component<E> {
     /// Register new [`Component`] and corresponding archetype.
@@ -194,7 +194,9 @@ impl<E: PointeeSized> Component<E> {
                 archetype_storage_vacancy: None,
             }
         };
-        world.components.insert(|id| (info, Component(id, PhantomType::new())))
+        let id = world.components.len();
+        world.components.push(info);
+        Component(id, PhantomType::new())
     }
 }
 
