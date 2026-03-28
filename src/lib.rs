@@ -49,6 +49,9 @@ macro_attr! {
     }
 }
 
+/// Stores [entities](Entity), and [components](Component).
+///
+/// The generic argument is used to distinguish different worlds from each other.
 pub struct World<E: PointeeSized + 'static> {
     components: Vec<ComponentInfo>,
     entities: Arena<EntityInfo>,
@@ -56,6 +59,7 @@ pub struct World<E: PointeeSized + 'static> {
 }
 
 impl<E: PointeeSized> World<E> {
+    /// Create new [`World`].
     pub const fn new() -> Self {
         World {
             components: Vec::new(),
@@ -271,6 +275,7 @@ impl<E: PointeeSized> Entity<E> {
         }, Entity(id, PhantomType::new())))
     }
 
+    /// Delete [`Entity`] and all its data from the [`World`].
     pub fn drop_entity(self, world: &mut World<E>) {
         let e_info = world.entities.remove(self.0);
         let archetype = &world.components[e_info.archetype];
@@ -303,7 +308,11 @@ impl<E: PointeeSized> Entity<E> {
         archetype.archetype_storage_vacancy = Some(e_info.index);
     }
 
-    pub fn add<T: 'static>(self, component: Component<E>, world: &mut World<E>, value: T) {
+    /// Initialize [`Entity`] component with provided `data`.
+    ///
+    /// Each component can only be added once. All components belonging to the entity archetype
+    /// must be added before the first [`get`](Entity::get)/[`get_mut`](Entity::get_mut) call.
+    pub fn add<T: 'static>(self, component: Component<E>, world: &mut World<E>, data: T) {
         let e_info = &mut world.entities[self.0];
         let c_info = &world.components[component.0];
         assert_eq!(c_info.ty, TypeId::of::<T>(), "component type mismatch");
@@ -321,7 +330,7 @@ impl<E: PointeeSized> Entity<E> {
         let p = unsafe {
             archetype.archetype_storage_ptr.add(archetype.archetype_size * e_info.index + c_offset) as *mut T
         };
-        unsafe { ptr::write(p, value); }
+        unsafe { ptr::write(p, data); }
     }
 
     pub fn get<T: 'static>(self, component: Component<E>, world: &World<E>) -> Option<&T> {
