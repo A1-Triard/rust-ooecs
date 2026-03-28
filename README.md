@@ -12,9 +12,11 @@ It is designed for cases, where simple "linear" systems are not good enough.
 
 ## Example: mimicry of traditional ECS
 
-First, define components data:
+First, define world tag and components data:
 
 ```rust
+pub enum Game { }
+
 pub struct Position {
     pub x: i16,
     pub y: i16,
@@ -26,7 +28,7 @@ pub struct Velocity {
 }
 
 pub struct List {
-    pub next: Entity,
+    pub next: Entity<Game>,
 }
 ```
 
@@ -35,10 +37,10 @@ The `List` component is needed for organizing entities in linear list.
 Next, create `World` and register components:
 
 ```rust
-let world = &mut World::new();
-let position = Component::new::<Position>(None, world);
-let velocity = Component::new::<Velocity>(Some(position), world);
-let mobs = Component::new::<List>(Some(velocity), world);
+let world = &mut World::<Game>::new();
+let position: Component<Position, Game> = Component::new_base(world);
+let velocity: Component<Velocity, Game> = Component::new(position, world);
+let mobs: Component<List, Game> = Component::new(velocity, world);
 ```
 
 Each component defines not only component itself, but also an archetype.
@@ -81,18 +83,18 @@ import! { pub movement:
 
 #[class_unsafe(inherits_Obj)]
 pub struct Movement {
-    mobs: Component,
-    position: Component,
-    velocity: Component,
+    mobs: Component<List, Game>,
+    position: Component<Position, Game>,
+    velocity: Component<Velocity, Game>,
     #[non_virt]
-    run: fn(start: Entity, world: &mut World),
+    run: fn(start: Entity<Game>, world: &mut World<Game>),
 }
 
 impl Movement {
     pub fn new(
-        mobs: Component,
-        position: Component,
-        velocity: Component,
+        mobs: Component<List, Game>,
+        position: Component<Position, Game>,
+        velocity: Component<Velocity, Game>,
     ) -> Rc<dyn IsMovement> {
         Rc::new(unsafe { Self::new_raw(
             mobs,
@@ -103,9 +105,9 @@ impl Movement {
     }
 
     pub unsafe fn new_raw(
-        mobs: Component,
-        position: Component,
-        velocity: Component,
+        mobs: Component<List, Game>,
+        position: Component<Position, Game>,
+        velocity: Component<Velocity, Game>,
         vtable: Vtable,
     ) -> Self {
         Movement {
@@ -116,16 +118,16 @@ impl Movement {
         }
     }
 
-    pub fn run_impl(this: &Rc<dyn IsMovement>, start: Entity, world: &mut World) {
+    pub fn run_impl(this: &Rc<dyn IsMovement>, start: Entity<Game>, world: &mut World<Game>) {
         let movement = this.movement();
         let mut entity = start;
         loop {
-            let velocity = entity.get::<Velocity>(movement.velocity, world).unwrap();
+            let velocity = entity.get(movement.velocity, world).unwrap();
             let (vx, vy) = (velocity.x, velocity.y);
-            let position = entity.get_mut::<Position>(movement.position, world).unwrap();
+            let position = entity.get_mut(movement.position, world).unwrap();
             position.x += vx;
             position.y += vy;
-            entity = entity.get::<List>(movement.mobs, world).unwrap().next;
+            entity = entity.get(movement.mobs, world).unwrap().next;
             if entity == start { break; }
         }
     }
@@ -149,6 +151,8 @@ mod game {
     use std::rc::Rc;
     use ooecs::{Entity, Component};
 
+    pub enum Game { }
+
     pub struct Position {
         pub x: i16,
         pub y: i16,
@@ -160,7 +164,7 @@ mod game {
     }
 
     pub struct List {
-        pub next: Entity,
+        pub next: Entity<Game>,
     }
 
     import! { pub movement:
@@ -170,18 +174,18 @@ mod game {
 
     #[class_unsafe(inherits_Obj)]
     pub struct Movement {
-        mobs: Component,
-        position: Component,
-        velocity: Component,
+        mobs: Component<List, Game>,
+        position: Component<Position, Game>,
+        velocity: Component<Velocity, Game>,
         #[non_virt]
-        run: fn(start: Entity, world: &mut World),
+        run: fn(start: Entity<Game>, world: &mut World<Game>),
     }
 
     impl Movement {
         pub fn new(
-            mobs: Component,
-            position: Component,
-            velocity: Component,
+            mobs: Component<List, Game>,
+            position: Component<Position, Game>,
+            velocity: Component<Velocity, Game>,
         ) -> Rc<dyn IsMovement> {
             Rc::new(unsafe { Self::new_raw(
                 mobs,
@@ -192,9 +196,9 @@ mod game {
         }
 
         pub unsafe fn new_raw(
-            mobs: Component,
-            position: Component,
-            velocity: Component,
+            mobs: Component<List, Game>,
+            position: Component<Position, Game>,
+            velocity: Component<Velocity, Game>,
             vtable: Vtable,
         ) -> Self {
             Movement {
@@ -205,16 +209,16 @@ mod game {
             }
         }
 
-        pub fn run_impl(this: &Rc<dyn IsMovement>, start: Entity, world: &mut World) {
+        pub fn run_impl(this: &Rc<dyn IsMovement>, start: Entity<Game>, world: &mut World<Game>) {
             let movement = this.movement();
             let mut entity = start;
             loop {
-                let velocity = entity.get::<Velocity>(movement.velocity, world).unwrap();
+                let velocity = entity.get(movement.velocity, world).unwrap();
                 let (vx, vy) = (velocity.x, velocity.y);
-                let position = entity.get_mut::<Position>(movement.position, world).unwrap();
+                let position = entity.get_mut(movement.position, world).unwrap();
                 position.x += vx;
                 position.y += vy;
-                entity = entity.get::<List>(movement.mobs, world).unwrap().next;
+                entity = entity.get(movement.mobs, world).unwrap().next;
                 if entity == start { break; }
             }
         }
@@ -225,10 +229,10 @@ use game::*;
 use ooecs::{Entity, Component, World};
 
 fn main() {
-    let world = &mut World::new();
-    let position = Component::new::<Position>(None, world);
-    let velocity = Component::new::<Velocity>(Some(position), world);
-    let mobs = Component::new::<List>(Some(velocity), world);
+    let world = &mut World::<Game>::new();
+    let position: Component<Position, Game> = Component::new_base(world);
+    let velocity: Component<Velocity, Game> = Component::new(position, world);
+    let mobs: Component<List, Game> = Component::new(velocity, world);
 
     let player = Entity::new(mobs, world);
     let mob = Entity::new(mobs, world);

@@ -159,7 +159,7 @@ impl<T: 'static, E: PointeeSized> Component<T, E> {
     /// pub enum Game { }
     ///
     /// # fn main() {
-    /// let mut world = <World<Game>>::new();
+    /// let mut world = World::<Game>::new();
     /// let position: Component<Position, Game> = Component::new_base(&mut world);
     /// let velocity: Component<Velocity, Game> = Component::new(position, &mut world);
     /// # }
@@ -194,7 +194,7 @@ impl<T: 'static, E: PointeeSized> Component<T, E> {
     /// pub enum Game { }
     ///
     /// # fn main() {
-    /// let mut world = <World<Game>>::new();
+    /// let mut world = World::<Game>::new();
     /// let position: Component<Position, Game> = Component::new_base(&mut world);
     /// let velocity: Component<Velocity, Game> = Component::new(position, &mut world);
     /// # }
@@ -450,14 +450,14 @@ mod tests {
 
     #[test]
     fn create_world_reg_component_drop_world() {
-        let mut world = <World<X>>::new();
+        let mut world = World::<X>::new();
         let _position: Component<Position, X> = Component::new_base(&mut world);
         drop(world);
     }
 
     #[test]
     fn create_entity_modify_check() {
-        let world = &mut <World<X>>::new();
+        let world = &mut World::<X>::new();
         let position: Component<Position, X> = Component::new_base(world);
         let velocity: Component<Velocity, X> = Component::new(position, world);
         let entity = Entity::new(velocity, world);
@@ -490,7 +490,7 @@ mod tests {
 
     #[test]
     fn drop_components() {
-        let mut world = <World<X>>::new();
+        let mut world = World::<X>::new();
         let component: Component<ComponentImplDrop, X> = Component::new_base(&mut world);
         let entity_1 = Entity::new(component, &mut world);
         entity_1.add(component, &mut world, ComponentImplDrop::new());
