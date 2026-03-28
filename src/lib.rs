@@ -120,6 +120,7 @@ impl<E: PointeeSized> Component<E> {
     /// # Example
     ///
     /// ```rust
+    /// # use ooecs::{World, Component}; 
     /// pub struct Position {
     ///     x: i16,
     ///     y: i16,
@@ -132,7 +133,7 @@ impl<E: PointeeSized> Component<E> {
     ///
     /// pub enum Game { }
     ///
-    /// # int main() {
+    /// # fn main() {
     /// let mut world = <World<Game>>::new();
     /// let position = Component::new::<Position>(None, &mut world);
     /// let velocity = Component::new::<Velocity>(Some(position), &mut world);
