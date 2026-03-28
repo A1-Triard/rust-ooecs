@@ -20,6 +20,7 @@ use core::cmp::max;
 use core::marker::PointeeSized;
 use core::mem::replace;
 use core::ptr::{self, null_mut};
+use educe::Educe;
 use phantom_type::PhantomType;
 
 struct ComponentInfo {
@@ -99,7 +100,8 @@ impl<E: PointeeSized> Drop for World<E> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Educe)]
+#[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Component<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Component<E> {
@@ -159,7 +161,8 @@ impl<E: PointeeSized> Component<E> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Educe)]
+#[educe(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Entity<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
 impl<E: PointeeSized> Entity<E> {
@@ -300,7 +303,9 @@ impl<E: PointeeSized> Entity<E> {
 #[cfg(test)]
 mod tests {
     use crate::{World, Entity, Component};
-    use std::sync::atomic::{AtomicIsize, Ordering};
+    use core::sync::atomic::{AtomicIsize, Ordering};
+
+    enum X { }
 
     struct Position {
         x: i16,
@@ -312,14 +317,14 @@ mod tests {
 
     #[test]
     fn create_world_reg_component_drop_world() {
-        let mut world = World::new();
+        let mut world = <World<X>>::new();
         let _position = Component::new::<Position>(None, &mut world);
         drop(world);
     }
 
     #[test]
     fn create_entity_modify_check() {
-        let world = &mut World::new();
+        let world = &mut <World<X>>::new();
         let position = Component::new::<Position>(None, world);
         let velocity = Component::new::<Velocity>(Some(position), world);
         let entity = Entity::new(velocity, world);
@@ -352,7 +357,7 @@ mod tests {
 
     #[test]
     fn drop_components() {
-        let mut world = World::new();
+        let mut world = <World<X>>::new();
         let component = Component::new::<ComponentImplDrop>(None, &mut world);
         let entity_1 = Entity::new(component, &mut world);
         entity_1.add(component, &mut world, ComponentImplDrop::new());

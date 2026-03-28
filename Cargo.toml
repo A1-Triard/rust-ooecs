@@ -14,6 +14,7 @@ repository = "https://github.com/A1-Triard/rust-ooecs"
 
 [dependencies]
 arena-container = "0.0.2"
+educe = "0.6.0"
 panicking = "0.7.0"
 phantom-type = { version = "0.5.2", default-features = false }
 
