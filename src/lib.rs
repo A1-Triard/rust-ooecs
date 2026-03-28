@@ -1,11 +1,26 @@
+#![feature(sized_hierarchy)]
+
+#![deny(warnings)]
+#![doc(test(attr(deny(warnings))))]
+#![doc(test(attr(allow(dead_code))))]
+#![doc(test(attr(allow(unused_variables))))]
 #![allow(clippy::collapsible_if)]
 
+#![no_std]
+
+extern crate alloc;
+
+use alloc::alloc::{Layout, alloc, realloc, dealloc};
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use arena_container::Arena;
-use std::alloc::{Layout, alloc, realloc, dealloc};
-use std::any::TypeId;
-use std::cmp::max;
-use std::mem::replace;
-use std::ptr::{self, null_mut};
+use core::any::TypeId;
+use core::cmp::max;
+use core::marker::PointeeSized;
+use core::mem::replace;
+use core::ptr::{self, null_mut};
+use phantom_type::PhantomType;
 
 struct ComponentInfo {
     ty: TypeId,
@@ -15,7 +30,7 @@ struct ComponentInfo {
     archetype_align: usize,
     offset: usize,
     index: usize,
-    archetype_components_except_self: Vec<Component>,
+    archetype_components_except_self: Vec<isize>,
     archetype_storage_ptr: *mut u8,
     archetype_storage_capacity: usize,
     archetype_storage_len: usize,
@@ -23,29 +38,31 @@ struct ComponentInfo {
 }
 
 struct EntityInfo {
-    archetype: Component,
+    archetype: isize,
     index: usize,
     component_initialized: Option<Vec<bool>>,
 }
 
-pub struct World {
+pub struct World<E: PointeeSized + 'static> {
     components: Arena<isize, ComponentInfo>,
     entities: Arena<isize, EntityInfo>,
+    _phantom: PhantomType<&'static E>
 }
 
-impl World {
+impl<E: PointeeSized> World<E> {
     pub const fn new() -> Self {
         World {
             components: Arena::new(),
-            entities: Arena::new()
+            entities: Arena::new(),
+            _phantom: PhantomType::new(),
         }
     }
 }
 
-impl Drop for World {
+impl<E: PointeeSized> Drop for World<E> {
     fn drop(&mut self) {
         for e_info in self.entities.items().values() {
-            let archetype = &self.components[e_info.archetype.0];
+            let archetype = &self.components[e_info.archetype];
             let component_initialized = if let Some(component_initialized) = &e_info.component_initialized {
                 component_initialized[archetype.index]
             } else {
@@ -60,7 +77,7 @@ impl Drop for World {
                 (archetype.drop_component)(p);
             }
             for &component in &archetype.archetype_components_except_self {
-                let c_info = &self.components[component.0];
+                let c_info = &self.components[component];
                 if let Some(component_initialized) = &e_info.component_initialized {
                     if !component_initialized[c_info.index] { continue; }
                 }
@@ -83,10 +100,10 @@ impl Drop for World {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Component(isize);
+pub struct Component<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
-impl Component {
-    pub fn new<T: 'static>(base: Option<Component>, world: &mut World) -> Self {
+impl<E: PointeeSized> Component<E> {
+    pub fn new<T: 'static>(base: Option<Component<E>>, world: &mut World<E>) -> Self {
         let drop_component = Box::new(|p: *mut u8| {
             drop(unsafe { ptr::read(p as *mut T) });
         });
@@ -107,7 +124,7 @@ impl Component {
             let index = base_info.index.checked_add(1).unwrap();
             let mut archetype_components_except_self = base_info.archetype_components_except_self.clone();
             archetype_components_except_self.reserve_exact(1);
-            archetype_components_except_self.push(base);
+            archetype_components_except_self.push(base.0);
             ComponentInfo {
                 ty: TypeId::of::<T>(),
                 drop_component,
@@ -138,15 +155,15 @@ impl Component {
                 archetype_storage_vacancy: None,
             }
         };
-        world.components.insert(|id| (info, Component(id)))
+        world.components.insert(|id| (info, Component(id, PhantomType::new())))
     }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Entity(isize);
+pub struct Entity<E: PointeeSized + 'static>(isize, PhantomType<&'static E>);
 
-impl Entity {
-    pub fn new(archetype: Component, world: &mut World) -> Self {
+impl<E: PointeeSized> Entity<E> {
+    pub fn new(archetype: Component<E>, world: &mut World<E>) -> Self {
         let info = &mut world.components[archetype.0];
         let index = if let Some(vacancy) = info.archetype_storage_vacancy {
             let cell = unsafe { info.archetype_storage_ptr.add(info.archetype_size * vacancy) };
@@ -186,15 +203,15 @@ impl Entity {
             info.archetype_components_except_self.len().checked_add(1).unwrap()
         ];
         world.entities.insert(|id| (EntityInfo {
-            archetype,
+            archetype: archetype.0,
             index,
             component_initialized: Some(component_initialized),
-        }, Entity(id)))
+        }, Entity(id, PhantomType::new())))
     }
 
-    pub fn drop_entity(self, world: &mut World) {
+    pub fn drop_entity(self, world: &mut World<E>) {
         let e_info = world.entities.remove(self.0);
-        let archetype = &world.components[e_info.archetype.0];
+        let archetype = &world.components[e_info.archetype];
         let component_initialized = if let Some(component_initialized) = &e_info.component_initialized {
             component_initialized[archetype.index]
         } else {
@@ -209,7 +226,7 @@ impl Entity {
             (archetype.drop_component)(p);
         }
         for &component in &archetype.archetype_components_except_self {
-            let c_info = &world.components[component.0];
+            let c_info = &world.components[component];
             if let Some(component_initialized) = &e_info.component_initialized {
                 if !component_initialized[c_info.index] { continue; }
             }
@@ -218,13 +235,13 @@ impl Entity {
             };
             (c_info.drop_component)(p);
         }
-        let archetype = &mut world.components[e_info.archetype.0];
+        let archetype = &mut world.components[e_info.archetype];
         let cell = unsafe { archetype.archetype_storage_ptr.add(archetype.archetype_size * e_info.index) };
         unsafe { ptr::write(cell as *mut Option<usize>, archetype.archetype_storage_vacancy) };
         archetype.archetype_storage_vacancy = Some(e_info.index);
     }
 
-    pub fn add<T: 'static>(self, component: Component, world: &mut World, value: T) {
+    pub fn add<T: 'static>(self, component: Component<E>, world: &mut World<E>, value: T) {
         let e_info = &mut world.entities[self.0];
         let c_info = &world.components[component.0];
         assert_eq!(c_info.ty, TypeId::of::<T>(), "component type mismatch");
@@ -234,10 +251,10 @@ impl Entity {
         }
         let c_index = c_info.index;
         let c_offset = c_info.offset;
-        let archetype = &world.components[e_info.archetype.0];
+        let archetype = &world.components[e_info.archetype];
         assert!(
-               component == e_info.archetype
-            || archetype.archetype_components_except_self.get(c_index).copied() == Some(component)
+               component.0 == e_info.archetype
+            || archetype.archetype_components_except_self.get(c_index).copied() == Some(component.0)
         );
         let p = unsafe {
             archetype.archetype_storage_ptr.add(archetype.archetype_size * e_info.index + c_offset) as *mut T
@@ -245,15 +262,15 @@ impl Entity {
         unsafe { ptr::write(p, value); }
     }
 
-    pub fn get<T: 'static>(self, component: Component, world: &World) -> Option<&T> {
+    pub fn get<T: 'static>(self, component: Component<E>, world: &World<E>) -> Option<&T> {
         let e_info = &world.entities[self.0];
         let c_info = &world.components[component.0];
         assert_eq!(c_info.ty, TypeId::of::<T>(), "component type mismatch");
         assert!(e_info.component_initialized.is_none());
-        let archetype = &world.components[e_info.archetype.0];
+        let archetype = &world.components[e_info.archetype];
         if
-               component != e_info.archetype
-            && archetype.archetype_components_except_self.get(c_info.index).copied() != Some(component)
+               component.0 != e_info.archetype
+            && archetype.archetype_components_except_self.get(c_info.index).copied() != Some(component.0)
         {
             return None;
         }
@@ -263,15 +280,15 @@ impl Entity {
         Some(unsafe { &*(p as *mut T) })
     }
 
-    pub fn get_mut<T: 'static>(self, component: Component, world: &mut World) -> Option<&mut T> {
+    pub fn get_mut<T: 'static>(self, component: Component<E>, world: &mut World<E>) -> Option<&mut T> {
         let e_info = &world.entities[self.0];
         let c_info = &world.components[component.0];
         assert_eq!(c_info.ty, TypeId::of::<T>(), "component type mismatch");
         assert!(e_info.component_initialized.is_none());
-        let archetype = &world.components[e_info.archetype.0];
+        let archetype = &world.components[e_info.archetype];
         assert!(
-               component == e_info.archetype
-            || archetype.archetype_components_except_self.get(c_info.index).copied() == Some(component)
+               component.0 == e_info.archetype
+            || archetype.archetype_components_except_self.get(c_info.index).copied() == Some(component.0)
         );
         let p = unsafe {
             archetype.archetype_storage_ptr.add(archetype.archetype_size * e_info.index + c_info.offset)
