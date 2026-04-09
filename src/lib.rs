@@ -422,10 +422,12 @@ impl<E: PointeeSized> Entity<E> {
         assert_eq!(c_info.ty, TypeId::of::<T>(), "component type mismatch");
         assert!(e_info.component_initialized.is_none());
         let archetype = &world.components[e_info.archetype];
-        assert!(
-               component.0 == e_info.archetype
-            || archetype.archetype_components_except_self.get(c_info.index).copied() == Some(component.0)
-        );
+        if
+               component.0 != e_info.archetype
+            && archetype.archetype_components_except_self.get(c_info.index).copied() != Some(component.0)
+        {
+            return None;
+        }
         let p = unsafe {
             archetype.archetype_storage_ptr.add(archetype.archetype_size * e_info.index + c_info.offset)
         };
